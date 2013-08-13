@@ -22,6 +22,7 @@ state INITIAL:
   'shmlog' -> SHMLOG
   'debuglog' -> DEBUGLOG
   'border' -> BORDER
+  'inset' -> INSET
   'layout' -> LAYOUT
   'append_layout' -> APPEND_LAYOUT
   'workspace' -> WORKSPACE
@@ -90,6 +91,11 @@ state BORDER_WIDTH:
     -> call cmd_border($border_style, "2")
   border_width = word
     -> call cmd_border($border_style, $border_width)
+
+# inset <number>
+state INSET:
+  inset_width = word
+    -> call cmd_inset($inset_width)
 
 # layout default|stacked|stacking|tabbed|splitv|splith
 # layout toggle [split|all]

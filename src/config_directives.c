@@ -281,6 +281,12 @@ CFGFUN(new_window, const char *windowtype, const char *border, const long width)
     }
 }
 
+CFGFUN(new_window_inset, const long width) {
+    // Set's the default inset border size
+
+   config.default_inset_width = width;
+}
+
 CFGFUN(hide_edge_borders, const char *borders) {
     if (strcmp(borders, "vertical") == 0)
         config.hide_edge_borders = ADJ_LEFT_SCREEN_EDGE | ADJ_RIGHT_SCREEN_EDGE;

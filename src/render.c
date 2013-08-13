@@ -148,8 +148,8 @@ void render_con(Con *con, bool render_fullscreen, bool already_inset) {
                              con->layout == L_TABBED))) &&
                          con->type != CT_FLOATING_CON &&
                          con->type != CT_WORKSPACE);
-    if ((!already_inset && should_inset)) {
-        Rect inset = (Rect) {4, 4, 4 * -2, 4 * -2};
+    if (!already_inset && should_inset) {
+        Rect inset = (Rect) {con->inset_size, con->inset_size, con->inset_size * -2, con->inset_size * -2};
         rect = rect_add(rect, inset);
         if (!render_fullscreen) {
             con->rect = rect_add(con->rect, inset);

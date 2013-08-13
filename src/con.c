@@ -54,6 +54,7 @@ Con *con_new_skeleton(Con *parent, i3Window *window) {
     new->type = CT_CON;
     new->window = window;
     new->border_style = config.default_border;
+    new->inset_size = config.default_inset_width;
     new->current_border_width = -1;
     if (window)
         new->depth = window->depth;
@@ -1219,6 +1220,13 @@ void con_set_border_style(Con *con, int border_style, int border_width) {
     parent->rect = rect_sub(parent->rect, bsr);
     parent->rect.y -= deco_height;
     parent->rect.height += deco_height;
+}
+
+/*
+ * This function sets a Con's current inset size
+ */
+void con_set_inset_size(Con *con, int inset_size) {
+    con->inset_size = inset_size;
 }
 
 /*

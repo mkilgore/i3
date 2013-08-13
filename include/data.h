@@ -514,6 +514,7 @@ struct Con {
     struct Rect rect;
     struct Rect window_rect;
     struct Rect deco_rect;
+    int inset_size;
     /** the geometry this window requested when getting mapped */
     struct Rect geometry;
 

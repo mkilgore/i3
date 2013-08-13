@@ -73,6 +73,10 @@ void cmd_resize(I3_CMD, char *way, char *direction, char *resize_px, char *resiz
 void cmd_border(I3_CMD, char *border_style_str, char *border_width);
 
 /**
+ * Impmenents 'inset <number>'
+ */
+void cmd_inset(I3_CMD, char *inset_width);
+/**
  * Implementation of 'nop <comment>'.
  *
  */

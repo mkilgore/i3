@@ -867,6 +867,25 @@ void cmd_border(I3_CMD, char *border_style_str, char *border_width) {
 }
 
 /*
+ * Implementation of 'inset <number>'.
+ *
+ */
+void cmd_inset(I3_CMD, char *inset_width) {
+    owindow *current;
+    int inset_size = atoi(inset_width);
+
+    HANDLE_EMPTY_MATCH;
+
+    TAILQ_FOREACH(current, &owindows, owindows) {
+        con_set_inset_size(current->con, inset_size);
+      
+    }
+
+    cmd_output->needs_tree_render = true;
+    ysuccess(true);
+}
+
+/*
  * Implementation of 'nop <comment>'.
  *
  */

@@ -102,11 +102,14 @@ state WORKSPACE_LAYOUT:
 # new_float <normal|1pixel|none>
 # TODO: new_float is not in the userguide yet
 # TODO: pixel is not in the userguide yet
+# TODO: Add userguide entry for 'new_window inset <number>'
 state NEW_WINDOW:
   border = 'normal', 'pixel'
       -> NEW_WINDOW_PIXELS
   border = '1pixel', 'none'
       -> call cfg_new_window($windowtype, $border, -1)
+  border = 'inset'
+      -> NEW_WINDOW_INSET
 
 state NEW_WINDOW_PIXELS:
   end
@@ -119,6 +122,12 @@ state NEW_WINDOW_PIXELS_PX:
       ->
   end
       -> call cfg_new_window($windowtype, $border, &width)
+
+state NEW_WINDOW_INSET:
+  end
+      ->
+  width = number
+      -> call cfg_new_window_inset(&width)
 
 # hide_edge_borders <none|vertical|horizontal|both>
 # also hide_edge_borders <bool> for compatibility

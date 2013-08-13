@@ -275,6 +275,12 @@ int con_border_style(Con *con);
 void con_set_border_style(Con *con, int border_style, int border_width);
 
 /**
+ * Sets the inset size on a con
+ *
+ */
+void con_set_inset_size(Con *con, int inset_size);
+
+/**
  * This function changes the layout of a given container. Use it to handle
  * special cases like changing a whole workspace to stacked/tabbed (creates a
  * new split container before).
