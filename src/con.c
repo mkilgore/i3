@@ -56,10 +56,10 @@ Con *con_new_skeleton(Con *parent, i3Window *window) {
     new->border_style = config.default_border;
     new->inset_size = config.default_inset_width;
     new->current_border_width = -1;
-    if (window)
+    /*if (window)
         new->depth = window->depth;
     else
-        new->depth = XCB_COPY_FROM_PARENT;
+        new->depth = XCB_COPY_FROM_PARENT;*/
     static int cnt = 0;
     DLOG("opening window %d\n", cnt);
 
@@ -87,7 +87,7 @@ Con *con_new_skeleton(Con *parent, i3Window *window) {
  */
 Con *con_new(Con *parent, i3Window *window) {
     Con *new = con_new_skeleton(parent, window);
-    x_con_init(new, new->depth);
+    x_con_init(new);
     return new;
 }
 

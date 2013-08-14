@@ -91,60 +91,36 @@ static con_state *state_for_frame(xcb_window_t window) {
  * every container from con_new().
  *
  */
-void x_con_init(Con *con, uint16_t depth) {
+void x_con_init(Con *con) {
     /* TODO: maybe create the window when rendering first? we could then even
      * get the initial geometry right */
 
     uint32_t mask = 0;
     uint32_t values[5];
 
-    xcb_visualid_t visual = XCB_COPY_FROM_PARENT;
-    xcb_colormap_t win_colormap = XCB_NONE;
-    if (depth != root_depth && depth != XCB_COPY_FROM_PARENT) {
-        /* For custom visuals, we need to create a colormap before creating
-         * this window. It will be freed directly after creating the window. */
-        visual = get_visualid_by_depth(depth);
-        win_colormap = xcb_generate_id(conn);
-        xcb_create_colormap_checked(conn, XCB_COLORMAP_ALLOC_NONE, win_colormap, root, visual);
+    /* We explicitly set a background color and border color (even though we
+     * don’t even have a border) because the X11 server requires us to when
+     * using 32 bit color depths, see
+     * http://stackoverflow.com/questions/3645632 */
+    mask |= XCB_CW_BACK_PIXEL;
+    values[0] = root_screen->black_pixel;
 
-        /* We explicitly set a background color and border color (even though we
-         * don’t even have a border) because the X11 server requires us to when
-         * using 32 bit color depths, see
-         * http://stackoverflow.com/questions/3645632 */
-        mask |= XCB_CW_BACK_PIXEL;
-        values[0] = root_screen->black_pixel;
+    mask |= XCB_CW_BORDER_PIXEL;
+    values[1] = root_screen->black_pixel;
 
-        mask |= XCB_CW_BORDER_PIXEL;
-        values[1] = root_screen->black_pixel;
+    /* our own frames should not be managed */
+    mask |= XCB_CW_OVERRIDE_REDIRECT;
+    values[2] = 1;
 
-        /* our own frames should not be managed */
-        mask |= XCB_CW_OVERRIDE_REDIRECT;
-        values[2] = 1;
+    /* see include/xcb.h for the FRAME_EVENT_MASK */
+    mask |= XCB_CW_EVENT_MASK;
+    values[3] = FRAME_EVENT_MASK & ~XCB_EVENT_MASK_ENTER_WINDOW;
 
-        /* see include/xcb.h for the FRAME_EVENT_MASK */
-        mask |= XCB_CW_EVENT_MASK;
-        values[3] = FRAME_EVENT_MASK & ~XCB_EVENT_MASK_ENTER_WINDOW;
+    mask |= XCB_CW_COLORMAP;
+    values[4] = colormap;
 
-        mask |= XCB_CW_COLORMAP;
-        values[4] = win_colormap;
-    } else {
-        /* our own frames should not be managed */
-        mask = XCB_CW_OVERRIDE_REDIRECT;
-        values[0] = 1;
-
-        /* see include/xcb.h for the FRAME_EVENT_MASK */
-        mask |= XCB_CW_EVENT_MASK;
-        values[1] = FRAME_EVENT_MASK & ~XCB_EVENT_MASK_ENTER_WINDOW;
-
-        mask |= XCB_CW_COLORMAP;
-        values[2] = colormap;
-    }
-
-    Rect dims = {-15, -15, 10, 10};
-    con->frame = create_window(conn, dims, depth, visual, XCB_WINDOW_CLASS_INPUT_OUTPUT, XCURSOR_CURSOR_POINTER, false, mask, values);
-
-    if (win_colormap != XCB_NONE)
-        xcb_free_colormap(conn, win_colormap);
+    Rect dims = { -15, -15, 10, 10 };
+    con->frame = create_window(conn, dims, XCB_WINDOW_CLASS_INPUT_OUTPUT, XCURSOR_CURSOR_POINTER, false, mask, values);
 
     struct con_state *state = scalloc(sizeof(struct con_state));
     state->id = con->frame;
@@ -329,12 +305,6 @@ void x_draw_decoration(Con *con) {
     if (con->rect.height == 0)
         return;
 
-    /* Skip containers whose pixmap has not yet been created (can happen when
-     * decoration rendering happens recursively for a window for which
-     * x_push_node() was not yet called) */
-    if (leaf && con->pixmap == XCB_NONE)
-        return;
-
     /* 1: build deco_params and compare with cache */
     struct deco_render_params *p = scalloc(sizeof(struct deco_render_params));
 
@@ -359,28 +329,11 @@ void x_draw_decoration(Con *con) {
     p->con_is_leaf = con_is_leaf(con);
     p->parent_layout = con->parent->layout;
 
-    if (con->deco_render_params != NULL &&
-        (con->window == NULL || !con->window->name_x_changed) &&
-        !parent->pixmap_recreated &&
-        !con->pixmap_recreated &&
-        memcmp(p, con->deco_render_params, sizeof(struct deco_render_params)) == 0) {
-        free(p);
-        goto copy_pixmaps;
-    }
-
-    Con *next = con;
-    while ((next = TAILQ_NEXT(next, nodes))) {
-        FREE(next->deco_render_params);
-    }
-
     FREE(con->deco_render_params);
     con->deco_render_params = p;
 
     if (con->window != NULL && con->window->name_x_changed)
         con->window->name_x_changed = false;
-
-    parent->pixmap_recreated = false;
-    con->pixmap_recreated = false;
 
     /* 2: draw the client.background, but only for the parts around the client_rect */
     if (con->window != NULL) {
@@ -455,15 +408,15 @@ void x_draw_decoration(Con *con) {
                 xcb_poly_fill_rectangle(conn, con->pixmap, con->pm_gc, 1, (xcb_rectangle_t[]) {
                                                                               {r->width + br.width + br.x, br.y, r->width, r->height + br.height}});
             else if (p->parent_layout == L_SPLITV)
-                xcb_poly_fill_rectangle(conn, con->pixmap, con->pm_gc, 1, (xcb_rectangle_t[]) {
-                                                                              {br.x, r->height + br.height + br.y, r->width - (2 * br.x), r->height}});
+                xcb_poly_fill_rectangle(conn, con->pixmap, con->pm_gc, 1, (xcb_rectangle_t[]){
+                        { br.x, r->height + br.height + br.y, r->width + br.width, -(br.height + br.y) } });
         }
     }
 
     /* if this is a borderless/1pixel window, we don’t need to render the
      * decoration. */
     if (p->border_style != BS_NORMAL)
-        goto copy_pixmaps;
+        return ;
 
     /* 4: paint the bar */
     xcb_change_gc(conn, parent->pm_gc, XCB_GC_FOREGROUND, (uint32_t[]) {p->color->background});
@@ -512,7 +465,7 @@ void x_draw_decoration(Con *con) {
     }
 
     if (win->name == NULL)
-        goto copy_pixmaps;
+        return ;
 
     int indent_level = 0,
         indent_mult = 0;
@@ -561,9 +514,6 @@ after_title:
 
     xcb_change_gc(conn, parent->pm_gc, XCB_GC_FOREGROUND, (uint32_t[]) {p->color->border});
     xcb_poly_segment(conn, parent->pixmap, parent->pm_gc, 2, segments);
-
-copy_pixmaps:
-    xcb_copy_area(conn, con->pixmap, con->frame, con->pm_gc, 0, 0, 0, 0, con->rect.width, con->rect.height);
 }
 
 /*
@@ -576,7 +526,34 @@ void x_deco_recurse(Con *con) {
     Con *current;
     bool leaf = TAILQ_EMPTY(&(con->nodes_head)) &&
                 TAILQ_EMPTY(&(con->floating_head));
-    con_state *state = state_for_frame(con->frame);
+    bool should_draw = (con->type != CT_ROOT && con->type != CT_OUTPUT) &&
+                       (!leaf || con->mapped);
+
+    if (should_draw) {
+        if (con->pixmap == 0) {
+            con->pixmap = xcb_generate_id(conn);
+            con->pm_gc = xcb_generate_id(conn);
+        } else {
+            xcb_free_pixmap(conn, con->pixmap);
+            xcb_free_gc(conn, con->pm_gc);
+        }
+
+        xcb_create_pixmap(conn, root_depth, con->pixmap, con->frame, con->rect.width, con->rect.height);
+
+        /* For the graphics context, we disable GraphicsExposure events.
+         * Those will be sent when a CopyAread request cannot be fulfilled
+         * properly due to prats of the source being unmapped or otherwise
+         * unavailable. Since we always copy from pixmaps to windows, this
+         * is not a concern for us.
+         */
+        xcb_create_gc(conn, con->pm_gc, con->pixmap, XCB_GC_GRAPHICS_EXPOSURES, (uint32_t[]) { 0 });
+
+        /* Clear stale data from behind the window
+         */
+        xcb_change_gc(conn, con->pm_gc, XCB_GC_FOREGROUND, (uint32_t[]){ 0 /* Pure Transparant */ });
+        xcb_poly_fill_rectangle(conn, con->pixmap, con->pm_gc, 1, (xcb_rectangle_t[]){
+                    { 0, 0, con->rect.width, con->rect.height } });
+    }
 
     if (!leaf) {
         TAILQ_FOREACH (current, &(con->nodes_head), nodes)
@@ -584,14 +561,12 @@ void x_deco_recurse(Con *con) {
 
         TAILQ_FOREACH (current, &(con->floating_head), floating_windows)
             x_deco_recurse(current);
-
-        if (state->mapped)
-            xcb_copy_area(conn, con->pixmap, con->frame, con->pm_gc, 0, 0, 0, 0, con->rect.width, con->rect.height);
     }
 
-    if ((con->type != CT_ROOT && con->type != CT_OUTPUT) &&
-        (!leaf || con->mapped))
+    if (should_draw) {
         x_draw_decoration(con);
+        xcb_copy_area(conn, con->pixmap, con->frame, con->pm_gc, 0, 0, 0, 0, con->rect.width, con->rect.height);
+    }
 }
 
 /*
@@ -698,8 +673,8 @@ void x_push_node(Con *con) {
             }
 
             uint16_t win_depth = root_depth;
-            if (con->window)
-                win_depth = con->window->depth;
+            /* if (con->window)
+                in_depth = con->window->depth; */
 
             xcb_create_pixmap(conn, win_depth, con->pixmap, con->frame, rect.width, rect.height);
 
@@ -725,15 +700,7 @@ void x_push_node(Con *con) {
         }
 
         DLOG("setting rect (%d, %d, %d, %d)\n", rect.x, rect.y, rect.width, rect.height);
-        /* flush to ensure that the following commands are sent in a single
-         * buffer and will be processed directly afterwards (the contents of a
-         * window get lost when resizing it, therefore we want to provide it as
-         * fast as possible) */
-        xcb_flush(conn);
         xcb_set_window_rect(conn, con->frame, rect);
-        if (con->pixmap != XCB_NONE)
-            xcb_copy_area(conn, con->pixmap, con->frame, con->pm_gc, 0, 0, 0, 0, con->rect.width, con->rect.height);
-        xcb_flush(conn);
 
         memcpy(&(state->rect), &rect, sizeof(Rect));
         fake_notify = true;
@@ -780,11 +747,6 @@ void x_push_node(Con *con) {
 
         values[0] = FRAME_EVENT_MASK;
         xcb_change_window_attributes(conn, con->frame, XCB_CW_EVENT_MASK, values);
-
-        /* copy the pixmap contents to the frame window immediately after mapping */
-        if (con->pixmap != XCB_NONE)
-            xcb_copy_area(conn, con->pixmap, con->frame, con->pm_gc, 0, 0, 0, 0, con->rect.width, con->rect.height);
-        xcb_flush(conn);
 
         DLOG("mapping container %08x (serial %d)\n", con->frame, cookie.sequence);
         state->mapped = con->mapped;

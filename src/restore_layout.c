@@ -184,8 +184,6 @@ static void open_placeholder_window(Con *con) {
         xcb_window_t placeholder = create_window(
             restore_conn,
             con->rect,
-            XCB_COPY_FROM_PARENT,
-            XCB_COPY_FROM_PARENT,
             XCB_WINDOW_CLASS_INPUT_OUTPUT,
             XCURSOR_CURSOR_POINTER,
             true,

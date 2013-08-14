@@ -274,6 +274,7 @@ int main(int argc, char *argv[]) {
     char *layout_path = NULL;
     bool delete_layout_path = false;
     bool force_xinerama = false;
+    bool enable_alpha_channel = false;
     char *fake_outputs = NULL;
     bool disable_signalhandler = false;
     static struct option long_options[] = {
@@ -288,6 +289,8 @@ int main(int argc, char *argv[]) {
         {"restart", required_argument, 0, 0},
         {"force-xinerama", no_argument, 0, 0},
         {"force_xinerama", no_argument, 0, 0},
+        {"enable-alpha-channel", no_argument, 0, 0},
+        {"enable_alpha_channel", no_argument, 0, 0},
         {"disable-signalhandler", no_argument, 0, 0},
         {"shmlog-size", required_argument, 0, 0},
         {"shmlog_size", required_argument, 0, 0},
@@ -298,6 +301,7 @@ int main(int argc, char *argv[]) {
         {"force-old-config-parser-v4.4-only", no_argument, 0, 0},
         {0, 0, 0, 0}};
     int option_index = 0, opt;
+    xcb_void_cookie_t colormap_cookie;
 
     setlocale(LC_ALL, "");
 
@@ -368,6 +372,10 @@ int main(int argc, char *argv[]) {
                          "Please check if your driver really does not support RandR "
                          "and disable this option as soon as you can.\n");
                     break;
+                } else if (strcmp(long_options[option_index].name, "enable-alpha-channel") == 0 ||
+                           strcmp(long_options[option_index].name, "enable_alpha_channel") == 0) {
+                    enable_alpha_channel = true;
+                    break;
                 } else if (strcmp(long_options[option_index].name, "disable-signalhandler") == 0) {
                     disable_signalhandler = true;
                     break;
@@ -419,6 +427,9 @@ int main(int argc, char *argv[]) {
                                 "\tThis option should only be used if you are stuck with the\n"
                                 "\told nVidia closed source driver (older than 302.17), which does\n"
                                 "\tnot support RandR.\n");
+                fprintf(stderr, "\n");
+                fprintf(stderr, "\t--enable-alpha-channel\n"
+                                "\tUse a 32-bit visual for transparancy support.\n");
                 fprintf(stderr, "\n");
                 fprintf(stderr, "\t--get-socketpath\n"
                                 "\tRetrieve the i3 IPC socket path from X11, print it, then exit.\n");
@@ -549,13 +560,34 @@ int main(int argc, char *argv[]) {
     root_screen = xcb_aux_get_screen(conn, conn_screen);
     root = root_screen->root;
 
+    load_configuration(conn, override_configpath, false);
+    if (only_check_config) {
+        LOG("Done checking configuration file. Exiting.\n");
+        exit(0);
+    }
+
+    if (config.enable_alpha_channel)
+        enable_alpha_channel = true;
+
     /* By default, we use the same depth and visual as the root window, which
      * usually is TrueColor (24 bit depth) and the corresponding visual.
      * However, we also check if a 32 bit depth and visual are available (for
      * transparency) and use it if so. */
-    root_depth = root_screen->root_depth;
+    /*root_depth = root_screen->root_depth;
     visual_id = root_screen->root_visual;
-    colormap = root_screen->default_colormap;
+    colormap = root_screen->default_colormap;*/
+    bool found_visual = false;
+    if (enable_alpha_channel) {
+        xcb_visualtype_t *visualtype = NULL;
+        if ((visualtype = xcb_aux_find_visual_by_attrs(root_screen, -1, 32)) != NULL) {
+            root_depth = 32;
+            visual_id = visualtype->visual_id;
+            colormap = xcb_generate_id(conn);
+            colormap_cookie = xcb_create_colormap_checked(conn, XCB_COLORMAP_ALLOC_NONE, colormap, root, visual_id);
+            found_visual = true;
+            DLOG("Found a visual with 32 bit depth.\n");
+        }
+    }
 
     DLOG("root_depth = %d, visual_id = 0x%08x.\n", root_depth, visual_id);
     DLOG("root_screen->height_in_pixels = %d, root_screen->height_in_millimeters = %d, dpi = %d\n",
@@ -565,12 +597,6 @@ int main(int argc, char *argv[]) {
 
     xcb_get_geometry_cookie_t gcookie = xcb_get_geometry(conn, root);
     xcb_query_pointer_cookie_t pointercookie = xcb_query_pointer(conn, root);
-
-    load_configuration(conn, override_configpath, false);
-    if (only_check_config) {
-        LOG("Done checking configuration file. Exiting.\n");
-        exit(0);
-    }
 
     if (config.ipc_socket_path == NULL) {
         /* Fall back to a file name in /tmp/ based on the PID */
@@ -584,9 +610,26 @@ int main(int argc, char *argv[]) {
     cookie = xcb_change_window_attributes_checked(conn, root, XCB_CW_EVENT_MASK, (uint32_t[]) {ROOT_EVENT_MASK});
     check_error(conn, cookie, "Another window manager seems to be running");
 
+    /* By now we already checked for replies once, so let's see if colormap
+     * creation worked (if requested), and fall back to default if it failed
+     * or if the alpha channel wasn't enabled. */
+    do {
+        if (enable_alpha_channel && found_visual) {
+            xcb_generic_error_t *error = xcb_request_check(conn, colormap_cookie);
+            if (error == NULL) {
+                break;
+            } else {
+                DLOG("root_depth = %d, visual_id = 0x%08x.\n", root_depth, visual_id);
+                free(error);
+            }
+        }
+        root_depth = root_screen->root_depth;
+        visual_id = root_screen->root_visual;
+        colormap = root_screen->default_colormap;
+    } while (0);
+
     xcb_get_geometry_reply_t *greply = xcb_get_geometry_reply(conn, gcookie, NULL);
     if (greply == NULL) {
-        ELOG("Could not get geometry of the root window, exiting\n");
         return 1;
     }
     DLOG("root geometry reply: (%d, %d) %d x %d\n", greply->x, greply->y, greply->width, greply->height);

@@ -611,8 +611,10 @@ static void cmd_resize_floating(I3_CMD, char *way, char *direction, Con *floatin
         floating_con->rect.height += px;
     } else if (strcmp(direction, "left") == 0) {
         floating_con->rect.width += px;
-    } else {
+    } else if (strcmp(direction, "width") == 0) {
         floating_con->rect.width += px;
+    } else {
+        floating_con->rect.height += px;
     }
 
     floating_check_size(floating_con);
@@ -941,7 +943,7 @@ void cmd_append_layout(I3_CMD, char *path) {
     // is not executed yet and will be batched with append_layout’s
     // needs_tree_render after the parser finished. We should check if that is
     // necessary at all.
-    render_con(croot, false);
+    render_con(croot, false, false);
 
     restore_open_placeholder_windows(parent);
 

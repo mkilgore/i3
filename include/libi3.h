@@ -358,7 +358,13 @@ int predict_text_width(i3String *text);
  * Returns the visual type associated with the given screen.
  *
  */
-xcb_visualtype_t *get_visualtype(xcb_screen_t *screen);
+xcb_visualtype_t *get_visualtype_for_screen(xcb_screen_t *screen);
+
+/**
+ * Returns the visual type associated with the given depth for the given screen.
+ *
+ */
+xcb_visualtype_t *get_visualtype_for_depth(xcb_screen_t *screen, uint8_t depth);
 
 /**
  * Returns true if this version of i3 is a debug build (anything which is not a

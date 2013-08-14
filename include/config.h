@@ -152,6 +152,11 @@ struct Config {
      * is fetched once and never updated. */
     bool force_xinerama;
 
+    /**
+     *
+     */
+    bool enable_alpha_channel;
+
     /** Overwrites output detection (for testing), see src/fake_outputs.c */
     char *fake_outputs;
 

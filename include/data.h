@@ -376,7 +376,7 @@ struct Window {
     struct reservedpx reserved;
 
     /** Depth of the window */
-    uint16_t depth;
+    //uint16_t depth;
 };
 
 /**

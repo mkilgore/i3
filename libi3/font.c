@@ -54,6 +54,20 @@ static PangoLayout *create_layout_with_dpi(cairo_t *cr) {
     return layout;
 }
 
+static uint8_t get_depth_of_drawable(xcb_drawable_t drawable) {
+    xcb_get_geometry_reply_t *geom;
+    int depth = 0;
+
+    geom = xcb_get_geometry_reply(conn, xcb_get_geometry(conn, drawable), 0);
+
+    if (geom) {
+        depth = geom->depth;
+        free(geom);
+    }
+
+    return depth;
+}
+
 /*
  * Loads a Pango font description into an i3Font structure. Returns true
  * on success, false otherwise.
@@ -74,7 +88,7 @@ static bool load_pango_font(i3Font *font, const char *desc) {
     /* We cache root_visual_type here, since you must call
      * load_pango_font before any other pango function
      * that would need root_visual_type */
-    root_visual_type = get_visualtype(root_screen);
+    root_visual_type = get_visualtype_for_screen(root_screen);
 
     /* Create a dummy Pango layout to compute the font height */
     cairo_surface_t *surface = cairo_xcb_surface_create(conn, root_screen->root, root_visual_type, 1, 1);
@@ -103,6 +117,16 @@ static bool load_pango_font(i3Font *font, const char *desc) {
  */
 static void draw_text_pango(const char *text, size_t text_len,
                             xcb_drawable_t drawable, int x, int y, int max_width) {
+    /* Query the depth of the drawable to get the proper visualtype */
+    xcb_visualtype_t *visual_type;
+    uint8_t depth = get_depth_of_drawable(drawable);
+    if (depth) {
+        visual_type = get_visualtype_for_depth(root_screen, depth);
+    } else {
+        /* Fall back to root_screen's visual */
+        visual_type = root_visual_type;
+    }
+
     /* Create the Pango layout */
     /* root_visual_type is cached in load_pango_font */
     cairo_surface_t *surface = cairo_xcb_surface_create(conn, drawable,

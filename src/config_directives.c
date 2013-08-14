@@ -175,6 +175,11 @@ CFGFUN(binding, const char *bindtype, const char *modifiers, const char *key, co
     configure_binding(bindtype, modifiers, key, release, command, DEFAULT_BINDING_MODE);
 }
 
+CFGFUN(enable_alpha_channel, const char *value) {
+    config.enable_alpha_channel = eval_boolstr(value);
+
+}
+
 /*******************************************************************************
  * Mode handling
  ******************************************************************************/
